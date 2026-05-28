@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import useStore from '../store/useStore';
 import InfiniteVideoGrid from '../components/InfiniteVideoGrid';
 import { useLanguage } from '../i18n/LanguageContext';
+import SortMenu from '../components/SortMenu';
 
 export default function HomePage() {
   const { t, language } = useLanguage();
-  const videos = useStore((s) => s.videos);
   const categories = useStore((s) => s.categories);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -24,13 +24,14 @@ export default function HomePage() {
     if (cat) toggleCategoryFilter(cat);
   };
 
-  const publicVideos = videos.filter((v) => v.visibility === 'public');
-  const filtered = selectedCategories.length === 0
-    ? publicVideos
-    : publicVideos.filter((v) => matchAllCategories
-        ? selectedCategories.every((cat) => v.categories.includes(cat))
-        : selectedCategories.some((cat) => v.categories.includes(cat))
-      );
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular' | 'likes' | 'random'>('random');
+
+  const fetchParams = useMemo(() => ({
+    categories: selectedCategories.length > 0 ? selectedCategories.join(',') : undefined,
+    matchAll: matchAllCategories,
+    sortBy,
+    limit: 12
+  }), [selectedCategories, matchAllCategories, sortBy]);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
@@ -48,10 +49,32 @@ export default function HomePage() {
     setActiveCategory(activeCategory === catName ? null : catName);
   };
 
+  const labels = language === 'el' ? {
+    random: 'Τυχαία',
+    newest: 'Νεότερα',
+    oldest: 'Παλαιότερα',
+    popular: 'Δημοφιλή',
+    likes: 'Αγαπημένα',
+  } : {
+    random: 'Random',
+    newest: 'Newest',
+    oldest: 'Oldest',
+    popular: 'Popular',
+    likes: 'Liked',
+  };
+
+  const sortOptions = [
+    { value: 'random' as 'newest' | 'oldest' | 'popular' | 'likes' | 'random', label: labels.random },
+    { value: 'newest' as 'newest' | 'oldest' | 'popular' | 'likes' | 'random', label: labels.newest },
+    { value: 'oldest' as 'newest' | 'oldest' | 'popular' | 'likes' | 'random', label: labels.oldest },
+    { value: 'popular' as 'newest' | 'oldest' | 'popular' | 'likes' | 'random', label: labels.popular },
+    { value: 'likes' as 'newest' | 'oldest' | 'popular' | 'likes' | 'random', label: labels.likes },
+  ];
+
   return (
     <div>
       {/* YouTube-style horizontal category chips — single select */}
-      <div className="relative mb-5 -mx-4 sm:-mx-6 px-4 sm:px-6">
+      <div className="relative flex items-center justify-between gap-2 sm:gap-4 mb-5 -mx-4 sm:-mx-6 px-4 sm:px-6">
         {showLeftArrow && (
           <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pl-4 sm:pl-6">
             <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-gray-50 dark:from-dark-bg to-transparent pointer-events-none" />
@@ -61,7 +84,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div ref={scrollRef} onScroll={handleScroll} className="flex gap-2.5 overflow-x-auto scrollbar-hide py-1">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 flex gap-2.5 overflow-x-auto scrollbar-hide py-1">
           <button
             onClick={() => setActiveCategory(null)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap flex-shrink-0 transition ${
@@ -102,8 +125,17 @@ export default function HomePage() {
         )}
       </div>
 
+      {/* Sort Menu positioned neatly below categories */}
+      <div className="flex justify-end mb-4 relative z-20">
+        <SortMenu 
+          value={sortBy} 
+          onChange={setSortBy}
+          options={sortOptions}
+        />
+      </div>
+
       <InfiniteVideoGrid
-        videos={filtered}
+        fetchParams={fetchParams}
         pageSize={12}
         emptyState={
           <div className="text-center py-20 text-gray-500 dark:text-dark-text-muted">

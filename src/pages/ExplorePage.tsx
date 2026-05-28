@@ -1,14 +1,12 @@
-import { useState } from 'react';
-import useStore from '../store/useStore';
+import { useState, useMemo } from 'react';
 import InfiniteVideoGrid from '../components/InfiniteVideoGrid';
 import { TrendingUp, Flame, Music, Gamepad2, GraduationCap } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
+import SortMenu from '../components/SortMenu';
 
 export default function ExplorePage() {
   const [activeSection, setActiveSection] = useState('trending');
-  const videos = useStore((s) => s.videos);
-  const { t } = useLanguage();
-  const publicVideos = videos.filter((v) => v.visibility === 'public');
+  const { t, language } = useLanguage();
 
   const SECTIONS = [
     { id: 'trending', labelKey: 'trending' as const, icon: Flame },
@@ -17,16 +15,47 @@ export default function ExplorePage() {
     { id: 'Education', labelKey: 'learning' as const, icon: GraduationCap },
   ];
 
-  const filtered =
-    activeSection === 'trending'
-      ? [...publicVideos].sort((a, b) => b.views - a.views)
-      : publicVideos.filter((v) => v.categories.includes(activeSection));
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular' | 'likes'>('popular');
+
+  const fetchParams = useMemo(() => ({
+    category: activeSection === 'trending' ? undefined : activeSection,
+    sortBy: sortBy,
+    limit: 12
+  }), [activeSection, sortBy]);
+
+  const labels = language === 'el' ? {
+    newest: 'Νεότερα',
+    oldest: 'Παλαιότερα',
+    popular: 'Δημοφιλή',
+    likes: 'Αγαπημένα',
+  } : {
+    newest: 'Newest',
+    oldest: 'Oldest',
+    popular: 'Popular',
+    likes: 'Most Liked',
+  };
+
+  const sortOptions = [
+    { value: 'popular' as 'popular' | 'newest' | 'oldest' | 'likes', label: labels.popular },
+    { value: 'newest' as 'popular' | 'newest' | 'oldest' | 'likes', label: labels.newest },
+    { value: 'oldest' as 'popular' | 'newest' | 'oldest' | 'likes', label: labels.oldest },
+    { value: 'likes' as 'popular' | 'newest' | 'oldest' | 'likes', label: labels.likes },
+  ];
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6">
-        <TrendingUp size={24} className="text-red-600" />
-        <h1 className="text-2xl font-bold">{t('explore')}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <TrendingUp size={24} className="text-red-600" />
+          <h1 className="text-2xl font-bold">{t('explore')}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <SortMenu 
+            value={sortBy} 
+            onChange={setSortBy} 
+            options={sortOptions} 
+          />
+        </div>
       </div>
 
       <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
@@ -47,7 +76,7 @@ export default function ExplorePage() {
       </div>
 
       <InfiniteVideoGrid
-        videos={filtered}
+        fetchParams={fetchParams}
         pageSize={12}
         emptyState={
           <div className="text-center py-16 text-gray-500 dark:text-dark-text-muted">

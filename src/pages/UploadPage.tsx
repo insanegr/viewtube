@@ -4,6 +4,7 @@ import { Upload, X, Film, Image, Layers, Plus, Minus } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatDuration } from '../utils/format';
 import { useLanguage } from '../i18n/LanguageContext';
+import { getAllowedVisibility } from '../constants';
 
 interface VideoUpload { id: string; file: File; title: string; description: string; videoUrl: string; thumbnailUrl: string; duration: number; isProcessing: boolean; }
 
@@ -13,10 +14,11 @@ export default function UploadPage() {
   const addVideo = useStore((s) => s.addVideo);
   const addVideos = useStore((s) => s.addVideos);
   const categories = useStore((s) => s.categories);
+  const currentUser = useStore((s) => s.currentUser);
   const [bulkMode, setBulkMode] = useState(false);
   const [uploads, setUploads] = useState<VideoUpload[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([categories[0]?.name || 'Entertainment']);
-  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private' | 'vip'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private' | 'user' | 'vip' | 'vip+' | 'vip++'>('public');
   const [dragActive, setDragActive] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -141,8 +143,13 @@ export default function UploadPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{bulkMode ? t('uploadVideos') : t('uploadVideo')}</h1>
         {uploads.length === 0 && (
-          <button onClick={() => setBulkMode(!bulkMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${bulkMode ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-gray-100 dark:bg-dark-card text-gray-700 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-hover'}`}>
+          <button 
+            onClick={() => setBulkMode(!bulkMode)} 
+            disabled={currentUser.role !== 'admin' && currentUser.role !== 'vip++' && currentUser.role !== 'moderator'}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${bulkMode ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-gray-100 dark:bg-dark-card text-gray-700 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-hover'} disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
             <Layers size={16} />{t('bulkUploadMode')}
+            {(currentUser.role !== 'admin' && currentUser.role !== 'vip++' && currentUser.role !== 'moderator') && <span className="text-[10px] ml-1 bg-yellow-500 text-black px-1 rounded">VIP++ / MOD</span>}
           </button>
         )}
       </div>
@@ -222,7 +229,14 @@ export default function UploadPage() {
               {showCategoryPicker && (<><div className="fixed inset-0 z-40" onClick={() => setShowCategoryPicker(false)} /><div className="absolute z-50 top-full mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border-light rounded-lg shadow-lg max-h-64 overflow-y-auto">{categories.map((cat) => { const isSel = selectedCategories.includes(cat.name); return (<button key={cat.id} type="button" onClick={() => toggleCategory(cat.name)} className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-hover ${isSel ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'dark:text-dark-text'}`}><span>{language==='el'?cat.nameEl:cat.name}</span><span className={`flex items-center justify-center w-5 h-5 rounded-full ${isSel ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-dark-hover'}`}>{isSel ? <Minus size={12} /> : <Plus size={12} />}</span></button>); })}</div></>)}
             </div>
           </div>
-          <div><label className="block text-sm font-medium mb-1">{t('visibility')}</label><select value={visibility} onChange={(e) => setVisibility(e.target.value as any)} className={inputCls + " !px-4 !py-2"}><option value="public">{t('public')}</option>{(useStore.getState().currentUser.role === 'vip' || useStore.getState().currentUser.role === 'admin') && <option value="vip">VIP only</option>}<option value="unlisted">{t('unlisted')}</option><option value="private">{t('private')}</option></select></div>
+          <div>
+            <label className="block text-sm font-medium mb-1">{t('visibility')}</label>
+            <select value={visibility} onChange={(e) => setVisibility(e.target.value as any)} className={inputCls + " !px-4 !py-2"}>
+              {getAllowedVisibility(currentUser.role).map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </>)}
 
         {/* Upload progress bar */}

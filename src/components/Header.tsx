@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Upload, Menu, Play, User, ListVideo, Shield, Sun, Moon, Monitor, Settings, ChevronRight, Globe, Check, ArrowLeft, LogOut, Bell, ThumbsUp, MessageSquare, UserPlus } from 'lucide-react';
+import { Search, Upload, Menu, Play, User, ListVideo, Shield, Sun, Moon, Monitor, Settings, ChevronRight, Globe, Check, ArrowLeft, LogOut, Bell, BellOff, ThumbsUp, MessageSquare, UserPlus, Star } from 'lucide-react';
 import useStore, { Theme } from '../store/useStore';
 import Avatar from './Avatar';
+import { useConfirm } from './ConfirmDialog';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Language } from '../i18n/translations';
 import { useTheme } from '../theme/ThemeContext';
+import { formatDateTime } from '../utils/format';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -22,6 +24,45 @@ const themeOptions: { value: Theme; icon: typeof Sun; labelKey: 'lightMode' | 'd
   { value: 'auto', icon: Monitor, labelKey: 'autoMode' },
 ];
 
+const getHeaderRoleIcon = (role: string) => {
+  switch (role) {
+    case 'admin': return <Shield size={10} className="text-red-500 flex-shrink-0" />;
+    case 'moderator': return <Shield size={10} className="text-blue-500 flex-shrink-0" />;
+    case 'moderator_vip_plus': return <Shield size={10} className="text-orange-500 flex-shrink-0" />;
+    case 'moderator_vip_plus_plus': return <Shield size={10} className="text-purple-500 flex-shrink-0" />;
+    case 'vip++': return <Star size={10} className="text-purple-500 flex-shrink-0" fill="currentColor" />;
+    case 'vip+': return <Star size={10} className="text-orange-500 flex-shrink-0" fill="currentColor" />;
+    case 'vip': return <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />;
+    default: return <User size={10} className="text-gray-400 flex-shrink-0" />;
+  }
+};
+
+const getHeaderRoleBadge = (role: string) => {
+  switch (role) {
+    case 'admin': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+    case 'moderator': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+    case 'moderator_vip_plus': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    case 'moderator_vip_plus_plus': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+    case 'vip++': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+    case 'vip+': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    case 'vip': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    default: return 'bg-gray-100 text-gray-700 dark:bg-dark-hover dark:text-dark-text-secondary';
+  }
+};
+
+const getHeaderRoleLabel = (role: string): string => {
+  switch (role) {
+    case 'admin': return 'Admin';
+    case 'moderator': return 'Mod';
+    case 'moderator_vip_plus': return 'Mod+';
+    case 'moderator_vip_plus_plus': return 'Mod++';
+    case 'vip++': return 'VIP++';
+    case 'vip+': return 'VIP+';
+    case 'vip': return 'VIP';
+    default: return 'User';
+  }
+};
+
 type MenuView = 'main' | 'theme' | 'language';
 
 function NotificationBell() {
@@ -29,10 +70,31 @@ function NotificationBell() {
   const notifications = useStore((s) => s.notifications);
   const markNotificationRead = useStore((s) => s.markNotificationRead);
   const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead);
+  const currentUser = useStore((s) => s.currentUser);
+  const updateProfile = useStore((s) => s.updateProfile);
+  const confirmDialog = useConfirm();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
+  const isSiteNotifEnabled = currentUser?.siteNotificationsEnabled !== false;
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleTurnOnSiteNotifications = async () => {
+    const ok = await confirmDialog({
+      title: 'Enable Site Notifications',
+      message: 'Are you sure you want to turn on Site Notifications? You will see real-time alerts and updates on the platform.',
+      confirmText: 'Turn On',
+      danger: false
+    });
+    if (ok) {
+      updateProfile({ siteNotificationsEnabled: true });
+      import('../api/client').then(({ api }) => {
+        const fd = new FormData();
+        fd.append('siteNotificationsEnabled', 'true');
+        api.updateProfile(fd).catch(() => {});
+      });
+    }
+  };
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -40,6 +102,7 @@ function NotificationBell() {
       case 'reply': return <MessageSquare size={16} className="text-green-500" />;
       case 'subscribe': return <UserPlus size={16} className="text-red-500" />;
       case 'like': return <ThumbsUp size={16} className="text-blue-500" />;
+      case 'role_upgrade': return <Shield size={16} className="text-purple-500" />;
       default: return <Bell size={16} />;
     }
   };
@@ -50,6 +113,7 @@ function NotificationBell() {
       case 'reply': return <><strong className="font-medium">{n.fromChannelName}</strong> {t('notifReply')} <strong className="font-medium">{n.videoTitle}</strong></>;
       case 'subscribe': return <><strong className="font-medium">{n.fromChannelName}</strong> {t('notifSubscribe')}</>;
       case 'like': return <><strong className="font-medium">{n.fromChannelName}</strong> {t('notifLike')} <strong className="font-medium">{n.videoTitle}</strong></>;
+      case 'role_upgrade': return <>Your role has been updated to <strong className="font-medium">{n.newRole?.toUpperCase()}</strong></>;
       default: return null;
     }
   };
@@ -57,8 +121,15 @@ function NotificationBell() {
   return (
     <div className="relative">
       <button onClick={() => setOpen(!open)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-full relative text-gray-700 dark:text-dark-text-secondary">
-        <Bell size={20} />
-        {unreadCount > 0 && (
+        {isSiteNotifEnabled ? (
+          <Bell size={20} />
+        ) : (
+          <div className="relative inline-flex items-center justify-center">
+            <BellOff size={20} className="text-gray-400 dark:text-gray-500 opacity-60" />
+            <span className="absolute -bottom-1 -right-1 text-[8px] bg-gray-500 text-white leading-none scale-75 rounded px-0.5">Off</span>
+          </div>
+        )}
+        {isSiteNotifEnabled && unreadCount > 0 && (
           <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -72,10 +143,23 @@ function NotificationBell() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
               <h3 className="font-semibold text-sm">{t('notificationsTitle')}</h3>
-              {unreadCount > 0 && (
+              {isSiteNotifEnabled && unreadCount > 0 && (
                 <button onClick={markAllNotificationsRead} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">{t('markAllRead')}</button>
               )}
             </div>
+
+            {/* Turn On banner */}
+            {!isSiteNotifEnabled && (
+              <div className="bg-blue-50 dark:bg-blue-900/15 border-b border-gray-100 dark:border-dark-border px-4 py-3 text-xs flex flex-row items-center justify-between gap-4">
+                <span className="text-gray-600 dark:text-dark-text-secondary">Site notifications are disabled. Turn them on to see new activities in real-time.</span>
+                <button 
+                  onClick={handleTurnOnSiteNotifications} 
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow transition flex-shrink-0"
+                >
+                  Turn On
+                </button>
+              </div>
+            )}
 
             {/* List */}
             <div className="flex-1 overflow-y-auto">
@@ -104,7 +188,7 @@ function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] leading-snug dark:text-dark-text line-clamp-2">{getMessage(n)}</p>
                       {n.commentText && <p className="text-xs text-gray-500 dark:text-dark-text-muted mt-0.5 line-clamp-1">"{n.commentText}"</p>}
-                      <p className="text-[11px] text-gray-400 dark:text-dark-text-muted mt-1">{n.date}</p>
+                      <p className="text-[11px] text-gray-400 dark:text-dark-text-muted mt-1">{formatDateTime(n.date)}</p>
                     </div>
                     {!n.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />}
                   </button>
@@ -224,8 +308,14 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                     {/* User info */}
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-dark-border flex items-center gap-3">
                       <Avatar name={currentUser.name} src={currentUser.avatar} size="md" />
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{currentUser.name}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate">{currentUser.name}</p>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider ${getHeaderRoleBadge(currentUser.role || 'user')}`}>
+                            {getHeaderRoleIcon(currentUser.role || 'user')}
+                            {getHeaderRoleLabel(currentUser.role || 'user').toUpperCase()}
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-dark-text-muted truncate">{currentUser.email}</p>
                       </div>
                     </div>
@@ -265,11 +355,25 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
                       </button>
                     </div>
 
-                    {/* Admin */}
-                    {currentUser.role === 'admin' && (
+                    {/* Admin/Moderator */}
+                    {(currentUser.role === 'admin' || currentUser.role === 'moderator' || currentUser.role === 'moderator_vip_plus' || currentUser.role === 'moderator_vip_plus_plus') && (
                       <div className="py-1 border-b border-gray-100 dark:border-dark-border">
-                        <Link to="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-dark-hover text-red-600 dark:text-red-400" onClick={closeMenu}>
-                          <Shield size={18} /> {t('admin')}
+                        <Link to="/admin" className={`flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-dark-hover ${
+                          currentUser.role === 'admin' ? 'text-red-600 dark:text-red-400 font-semibold' :
+                          currentUser.role === 'moderator_vip_plus_plus' ? 'text-purple-600 dark:text-purple-400 font-semibold' :
+                          currentUser.role === 'moderator_vip_plus' ? 'text-orange-600 dark:text-orange-400 font-semibold' :
+                          'text-blue-600 dark:text-blue-400 font-semibold'
+                        }`} onClick={closeMenu}>
+                          <Shield size={18} className={
+                            currentUser.role === 'admin' ? 'text-red-500' :
+                            currentUser.role === 'moderator_vip_plus_plus' ? 'text-purple-500' :
+                            currentUser.role === 'moderator_vip_plus' ? 'text-orange-500' :
+                            'text-blue-500'
+                          } /> 
+                          {currentUser.role === 'admin' ? t('admin') : 
+                           currentUser.role === 'moderator_vip_plus_plus' ? 'Moderator++ Panel' :
+                           currentUser.role === 'moderator_vip_plus' ? 'Moderator+ Panel' :
+                           'Moderator Panel'}
                         </Link>
                       </div>
                     )}

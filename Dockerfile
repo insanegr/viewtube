@@ -50,13 +50,13 @@ VOLUME /app/server/data
 
 # Non-secret runtime defaults
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV DATA_DIR=/app/server/data
 # Silence npm notifier noise if npm is ever invoked manually in the container
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
-EXPOSE 3001
+EXPOSE 3000
 
-# Start server directly without npx so container logs stay clean
-CMD ["./node_modules/.bin/tsx", "server/index.ts"]
+# Start server directly using the production bundle
+CMD ["node", "dist/server.cjs"]

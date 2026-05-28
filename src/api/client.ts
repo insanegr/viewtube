@@ -86,6 +86,9 @@ export const api = {
   // Auth — these return { accessToken, refreshToken, user }
   login: (identifier: string, password: string) => request('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   register: (name: string, username: string, email: string, password: string) => request('/auth/register', { method: 'POST', body: JSON.stringify({ name, username, email, password }) }),
+  checkUsername: (username: string) => request(`/auth/check-username?q=${encodeURIComponent(username)}`),
+  checkEmail: (email: string) => request(`/auth/check-email?q=${encodeURIComponent(email)}`),
+  checkName: (name: string, excludeId?: string) => request(`/auth/check-name?q=${encodeURIComponent(name)}${excludeId ? `&excludeId=${encodeURIComponent(excludeId)}` : ''}`),
   requestReset: (identifier: string, note?: string) => request('/auth/request-reset', { method: 'POST', body: JSON.stringify({ identifier, note }) }),
   refresh: (refreshToken: string) => request('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   getRecoveryRequests: () => request('/admin/recovery-requests'),
@@ -95,7 +98,15 @@ export const api = {
   me: () => request('/auth/me'),
 
   // Videos
-  getVideos: () => request('/videos'),
+  getVideos: (params?: { limit?: number; page?: number; category?: string; categories?: string; matchAll?: string; search?: string; visibility?: string; channelId?: string; sortBy?: string; excludeId?: string; subscribed?: string }) => {
+    if (!params) return request('/videos');
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') q.append(k, String(v));
+    });
+    const queryString = q.toString();
+    return request(queryString ? `/videos?${queryString}` : '/videos');
+  },
   getVideo: (id: string) => request(`/videos/${id}`),
   viewVideo: (id: string) => request(`/videos/${id}/view`, { method: 'POST' }),
   uploadVideo: (formData: FormData) => request('/videos', { method: 'POST', body: formData }),
@@ -107,6 +118,7 @@ export const api = {
   // Channels
   getChannels: () => request('/channels'),
   updateProfile: (formData: FormData) => request('/channels/me', { method: 'PUT', body: formData }),
+  deleteProfile: () => request('/channels/me', { method: 'DELETE' }),
   updateRole: (id: string, role: string) => request(`/channels/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
 
   // Subscriptions
@@ -121,11 +133,14 @@ export const api = {
 
   // Comments
   getComments: (videoId: string) => request(`/videos/${videoId}/comments`),
-  addComment: (videoId: string, text: string) => request(`/videos/${videoId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+  addComment: (videoId: string, text: string, parentId?: string | null) => request(`/videos/${videoId}/comments`, { method: 'POST', body: JSON.stringify({ text, parentId }) }),
+  editComment: (id: string, text: string) => request(`/comments/${id}`, { method: 'PUT', body: JSON.stringify({ text }) }),
+  deleteComment: (id: string) => request(`/comments/${id}`, { method: 'DELETE' }),
 
   // Playlists
   getPlaylists: () => request('/playlists'),
-  createPlaylist: (name: string, description: string) => request('/playlists', { method: 'POST', body: JSON.stringify({ name, description }) }),
+  getChannelPlaylists: (channelId: string) => request(`/playlists?channelId=${channelId}`),
+  createPlaylist: (name: string, description: string, visibility?: string) => request('/playlists', { method: 'POST', body: JSON.stringify({ name, description, visibility }) }),
   deletePlaylist: (id: string) => request(`/playlists/${id}`, { method: 'DELETE' }),
   addToPlaylist: (id: string, videoId: string) => request(`/playlists/${id}/videos`, { method: 'POST', body: JSON.stringify({ videoId }) }),
   removeFromPlaylist: (id: string, videoId: string) => request(`/playlists/${id}/videos/${videoId}`, { method: 'DELETE' }),
@@ -137,7 +152,25 @@ export const api = {
   clearHistory: () => request('/history', { method: 'DELETE' }),
 
   // Analytics
-  getAnalytics: (days?: number) => request(`/analytics?days=${days || 30}`),
+  getAnalytics: (options?: { days?: number; videoId?: string; category?: string; startDate?: string; endDate?: string }) => {
+    const params = new URLSearchParams();
+    if (options) {
+      if (options.days) params.append('days', String(options.days));
+      if (options.videoId) params.append('videoId', options.videoId);
+      if (options.category) params.append('category', options.category);
+      if (options.startDate) params.append('startDate', options.startDate);
+      if (options.endDate) params.append('endDate', options.endDate);
+    } else {
+      params.append('days', '30');
+    }
+    return request(`/analytics?${params.toString()}`);
+  },
+  
+  // Notifications
+  getNotifications: () => request('/notifications'),
+  markNotificationRead: (id: string) => request(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
+  clearNotifications: () => request('/notifications', { method: 'DELETE' }),
 
   // Import
   browseImport: (path = '') => request(`/import/browse?path=${encodeURIComponent(path)}`),
@@ -151,4 +184,50 @@ export const api = {
   createBackup: () => request('/admin/backups', { method: 'POST' }),
   deleteBackup: (name: string) => request(`/admin/backups/${name}`, { method: 'DELETE' }),
   restoreBackup: (formData: FormData) => request('/admin/restore', { method: 'POST', body: formData }),
+  downloadBackup: async (name: string) => {
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/admin/backups/${name}`, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    return res.blob();
+  },
+  downloadLiveDb: async () => {
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/admin/download-db`, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    return res.blob();
+  },
+
+  // System Health, Logs & Storage Cleaners
+  getAdminLogs: () => request('/admin/logs'),
+  getSystemHealth: () => request('/admin/health'),
+  cleanerScan: () => request('/admin/cleaner/scan'),
+  cleanerPurge: (filePaths: string[]) => request('/admin/cleaner/purge', { method: 'POST', body: JSON.stringify({ filePaths }) }),
+  cleanerRepairDb: (videoIds: string[]) => request('/admin/cleaner/repair-db', { method: 'POST', body: JSON.stringify({ videoIds }) }),
+
+  // Reports
+  submitReport: (type: 'video' | 'comment' | 'ban_request', targetId: string, reason: string, details?: string) =>
+    request('/reports', { method: 'POST', body: JSON.stringify({ type, targetId, reason, details }) }),
+  getReports: () => request('/reports'),
+  updateReportStatus: (id: string, status: 'resolved' | 'dismissed') =>
+    request(`/reports/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+
+  // Moderation (Mute / Mute Unmute)
+  muteUser: (userId: string, durationDays: number) =>
+    request(`/admin/users/${userId}/mute`, { method: 'POST', body: JSON.stringify({ durationDays }) }),
+  unmuteUser: (userId: string) =>
+    request(`/admin/users/${userId}/unmute`, { method: 'POST' }),
+
+  // Ban / Unban
+  banUser: (userId: string, durationDays?: number, reason?: string) =>
+    request(`/admin/users/${userId}/ban`, { method: 'POST', body: JSON.stringify({ durationDays, reason }) }),
+  unbanUser: (userId: string) =>
+    request(`/admin/users/${userId}/unban`, { method: 'POST' }),
+
+  // User Moderation History and Statistics
+  getUserModerationHistory: (userId: string) =>
+    request(`/admin/users/${userId}/moderation-history`),
 };

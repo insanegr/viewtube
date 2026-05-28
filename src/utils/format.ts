@@ -21,8 +21,24 @@ export function formatCount(count: number): string {
   return `${count}`;
 }
 
+export function safeParseDate(dateStr: string | undefined): Date | null {
+  if (!dateStr) return null;
+  let normalized = dateStr.trim();
+  if (normalized.includes(' ') && !normalized.includes('T')) {
+    normalized = normalized.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export function formatDateTime(dateStr: string | undefined): string {
+  const d = safeParseDate(dateStr);
+  return d ? d.toLocaleString() : 'N/A';
+}
+
 export function timeAgo(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = safeParseDate(dateStr);
+  if (!date) return 'Today';
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Compass, PlaySquare, ThumbsUp, ListVideo, User, Plus, Minus, X, ChevronDown, ChevronUp, FolderOpen, ChevronRight, History, BarChart3, ListEnd, Clock3 } from 'lucide-react';
+import { Home, Compass, PlaySquare, ThumbsUp, ListVideo, User, Plus, Minus, X, ChevronDown, ChevronUp, FolderOpen, History, BarChart3, ListEnd, Clock3, Menu } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import useStore from '../store/useStore';
 import { socialLinks, siteName, copyrightYear } from '../config/site';
@@ -8,15 +8,22 @@ import { GithubIcon, DiscordIcon, YoutubeIcon, FacebookIcon, InstagramIcon, Stea
 
 interface SidebarProps {
   isOpen: boolean;
-  isMobile: boolean;
+  onToggle?: () => void;
 }
 
-export default function Sidebar({ isOpen, isMobile }: SidebarProps) {
+export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const location = useLocation();
   const { t, language } = useLanguage();
   const currentUser = useStore((s) => s.currentUser);
   const isLoggedIn = currentUser.id !== '';
   const categories = useStore((s) => s.categories);
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => {
+      const aName = language === 'el' ? a.nameEl : a.name;
+      const bName = language === 'el' ? b.nameEl : b.name;
+      return aName.localeCompare(bName, language);
+    });
+  }, [categories, language]);
   const selectedCategories = useStore((s) => s.selectedCategories);
   const matchAllCategories = useStore((s) => s.matchAllCategories);
   const toggleCategoryFilter = useStore((s) => s.toggleCategoryFilter);
@@ -28,6 +35,8 @@ export default function Sidebar({ isOpen, isMobile }: SidebarProps) {
   const navigate = useNavigate();
 
   const [categoriesExpanded, setCategoriesExpanded] = useState(true);
+  const [subscriptionsExpanded, setSubscriptionsExpanded] = useState(false);
+  const [youExpanded, setYouExpanded] = useState(false);
 
   const socials = [
     { url: socialLinks.github, Icon: GithubIcon, label: 'GitHub' },
@@ -65,65 +74,102 @@ export default function Sidebar({ isOpen, isMobile }: SidebarProps) {
     );
   };
 
-  // On mobile when closed — no sidebar at all
-  if (isMobile && !isOpen) return null;
-
-  // Desktop collapsed mini sidebar
-  if (!isMobile && !isOpen) {
-    return (
-      <aside className="fixed top-14 left-0 bottom-0 w-[72px] bg-white dark:bg-dark-bg z-30 hidden lg:flex flex-col">
-        <div className="flex-1 flex flex-col items-center py-1 px-1 gap-0.5">
-          <NavItem to="/" icon={Home} label={t('home')} compact />
-          <NavItem to="/explore" icon={Compass} label={t('explore')} compact />
-          <NavItem to="/subscriptions" icon={PlaySquare} label={t('subscriptions')} compact />
-          <NavItem to="/profile" icon={User} label={t('you')} compact />
-        </div>
-      </aside>
-    );
-  }
-
-  // Full expanded sidebar (desktop open OR mobile drawer)
+  // Main sidebar content (for both mini and full)
   const subscribedChs = subscribedChannels.map((id) => channels.find((c) => c.id === id)).filter(Boolean);
 
   return (
-    <aside className={`fixed top-14 left-0 bottom-0 w-60 bg-white dark:bg-dark-bg flex flex-col ${isMobile ? 'z-50 shadow-xl' : 'z-30'}`}>
-      <div className="flex-1 overflow-y-auto px-3 py-1">
-        {/* Main */}
-        <div className="pb-3 border-b border-gray-200 dark:border-dark-border mb-1">
+    <>
+      {/* Full expanded overlay sidebar */}
+      <aside className={`fixed top-0 left-0 bottom-0 w-60 bg-white dark:bg-dark-bg flex flex-col z-50 shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Header inside sidebar (to match main header height and add close button if needed) */}
+        <div className="h-14 flex items-center px-2 sm:px-4 border-b border-gray-100 dark:border-dark-border/50 gap-2 sm:gap-4">
+          <button onClick={onToggle} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-full text-gray-700 dark:text-dark-text flex-shrink-0" title="Close sidebar">
+            <Menu size={20} />
+          </button>
+          <Link to="/" className="flex items-center gap-1 font-bold text-xl tracking-tighter">
+            <span className="text-red-600">View</span>Tube
+          </Link>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin">
+        {/* Main Nav Items: Home, Explore, Subscriptions, You */}
+        <div className="pb-3 border-b border-gray-200 dark:border-dark-border mb-1 space-y-0.5">
           <NavItem to="/" icon={Home} label={t('home')} />
           <NavItem to="/explore" icon={Compass} label={t('explore')} />
+
+          {/* Subscriptions as collapsible dropdown if logged in */}
+          {isLoggedIn ? (
+            <div>
+              <button
+                onClick={() => setSubscriptionsExpanded(!subscriptionsExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors duration-150 hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-dark-text-secondary ${
+                  subscriptionsExpanded ? 'bg-gray-100 dark:bg-dark-card font-medium text-gray-900 dark:text-white' : ''
+                }`}
+              >
+                <span className="flex items-center gap-5">
+                  <PlaySquare size={22} strokeWidth={subscriptionsExpanded ? 2.5 : 1.8} />
+                  <span>{t('subscriptions')}</span>
+                </span>
+                {subscriptionsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {subscriptionsExpanded && (
+                <div className="mt-1 ml-4 pl-3 border-l border-gray-200 dark:border-dark-border/50 space-y-0.5">
+                  {subscribedChs.map((ch) => ch && (
+                    <Link
+                      key={ch.id}
+                      to="/subscriptions"
+                      className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-xs hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-dark-text-secondary"
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ${
+                        ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'][ch.name.charCodeAt(0) % 5]
+                      }`}>
+                        {ch.name[0]}
+                      </div>
+                      <span className="truncate">{ch.name}</span>
+                    </Link>
+                  ))}
+                  <NavItem to="/subscriptions" icon={PlaySquare} label={subscribedChs.length > 0 ? t('subscriptions') : t('subscribeToChannels')} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <NavItem to="/subscriptions" icon={PlaySquare} label={t('subscriptions')} />
+          )}
+
+          {/* You as collapsible dropdown if logged in */}
+          {isLoggedIn ? (
+            <div>
+              <button
+                onClick={() => setYouExpanded(!youExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors duration-150 hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-dark-text-secondary ${
+                  youExpanded ? 'bg-gray-100 dark:bg-dark-card font-medium text-gray-900 dark:text-white' : ''
+                }`}
+              >
+                <span className="flex items-center gap-5">
+                  <User size={22} strokeWidth={youExpanded ? 2.5 : 1.8} />
+                  <span>{t('you')}</span>
+                </span>
+                {youExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {youExpanded && (
+                <div className="mt-1 ml-4 pl-3 border-l border-gray-200 dark:border-dark-border/50 space-y-0.5">
+                  <NavItem to="/profile" icon={User} label={t('yourChannel')} />
+                  <NavItem to="/history" icon={History} label={t('history')} />
+                  {queue.length > 0 && <NavItem to="/queue" icon={ListEnd} label={t('queue')} />}
+                  <NavItem to="/watch-later" icon={Clock3} label="Watch Later" />
+                  <NavItem to="/library" icon={FolderOpen} label={t('library')} />
+                  <NavItem to="/liked" icon={ThumbsUp} label={t('likedVideos')} />
+                  <NavItem to="/profile?tab=playlists" icon={ListVideo} label={t('playlists')} />
+                  <NavItem to="/analytics" icon={BarChart3} label={t('analytics')} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <NavItem to="/profile" icon={User} label={t('you')} />
+          )}
         </div>
-
-        {/* You — logged in only */}
-        {isLoggedIn && (
-          <div className="py-3 border-b border-gray-200 dark:border-dark-border mb-1">
-            <Link to="/profile" className="flex items-center gap-1 px-3 py-1.5 text-base font-medium mb-1 hover:text-blue-600 dark:hover:text-blue-400">
-              {t('you')} <ChevronRight size={16} />
-            </Link>
-            <NavItem to="/profile" icon={User} label={t('yourChannel')} />
-            <NavItem to="/history" icon={History} label={t('history')} />
-            {queue.length > 0 && <NavItem to="/queue" icon={ListEnd} label={t('queue')} />}
-            <NavItem to="/watch-later" icon={Clock3} label="Watch Later" />
-            <NavItem to="/library" icon={FolderOpen} label={t('library')} />
-            <NavItem to="/liked" icon={ThumbsUp} label={t('likedVideos')} />
-            <NavItem to="/profile?tab=playlists" icon={ListVideo} label={t('playlists')} />
-            <NavItem to="/analytics" icon={BarChart3} label={t('analytics')} />
-          </div>
-        )}
-
-        {/* Subscriptions — logged in only */}
-        {isLoggedIn && (
-          <div className="py-3 border-b border-gray-200 dark:border-dark-border mb-1">
-            <p className="px-3 py-1.5 text-base font-medium mb-1">{t('subscriptions')}</p>
-            {subscribedChs.map((ch) => ch && (
-              <Link key={ch.id} to="/subscriptions" className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-dark-text-secondary">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${['bg-red-500','bg-blue-500','bg-green-500','bg-purple-500','bg-orange-500'][ch.name.charCodeAt(0) % 5]}`}>{ch.name[0]}</div>
-                <span className="truncate">{ch.name}</span>
-              </Link>
-            ))}
-            <NavItem to="/subscriptions" icon={PlaySquare} label={subscribedChs.length > 0 ? t('subscriptions') : t('subscribeToChannels')} />
-          </div>
-        )}
 
         {/* Categories */}
         <div className="py-3 border-b border-gray-200 dark:border-dark-border mb-1">
@@ -159,7 +205,7 @@ export default function Sidebar({ isOpen, isMobile }: SidebarProps) {
               )}
               {/* Category list — +/- icon on LEFT side */}
               <div className="space-y-0.5">
-                {categories.map((cat) => {
+                {sortedCategories.map((cat) => {
                   const isSel = selectedCategories.includes(cat.name);
                   return (
                     <button key={cat.id} onClick={() => { toggleCategoryFilter(cat.name); navigate('/'); }} className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition group ${isSel ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-medium' : 'hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-dark-text-secondary'}`}>
@@ -177,14 +223,15 @@ export default function Sidebar({ isOpen, isMobile }: SidebarProps) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 dark:border-dark-border px-4 py-3 flex-shrink-0">
-        <div className="flex items-center justify-center gap-3 mb-2">
+      <div className="border-t border-gray-100 dark:border-dark-border/50 px-4 py-4 flex-shrink-0">
+        <div className="flex items-center justify-center gap-4 mb-3">
           {socials.map((s) => (
-            <a key={s.label} href={s.url} target="_blank" rel="noopener noreferrer" title={s.label} className="text-gray-400 dark:text-dark-text-muted hover:text-gray-700 dark:hover:text-white transition"><s.Icon size={15} /></a>
+            <a key={s.label} href={s.url} target="_blank" rel="noopener noreferrer" title={s.label} className="text-gray-400 dark:text-dark-text-muted hover:text-gray-700 dark:hover:text-white transition transform hover:scale-110"><s.Icon size={16} /></a>
           ))}
         </div>
-        <p className="text-[10px] text-gray-400 dark:text-dark-text-muted text-center">© {copyrightYear} {siteName}</p>
+        <p className="text-[10px] text-gray-400 dark:text-dark-text-muted text-center font-medium opacity-80 uppercase tracking-widest">© {copyrightYear} {siteName}</p>
       </div>
     </aside>
+    </>
   );
 }

@@ -85,6 +85,51 @@ export default function BackupPage() {
     setRestoring(false);
   };
 
+  const [downloadingName, setDownloadingName] = useState<string | null>(null);
+  const [downloadingDb, setDownloadingDb] = useState(false);
+
+  const handleDownloadBackup = async (name: string) => {
+    setDownloadingName(name);
+    try {
+      const { api } = await import('../api/client');
+      const blob = await api.downloadBackup(name);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showToast('Download started successfully', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Download failed', 'error');
+    } finally {
+      setDownloadingName(null);
+    }
+  };
+
+  const handleDownloadLiveDb = async () => {
+    setDownloadingDb(true);
+    try {
+      const { api } = await import('../api/client');
+      const blob = await api.downloadLiveDb();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'viewtube.db';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showToast('Download started successfully', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Download failed', 'error');
+    } finally {
+      setDownloadingDb(false);
+    }
+  };
+
   const storageItems = storage ? [
     { label: 'Database', size: storage.database, icon: Database, color: 'text-blue-500' },
     { label: 'Videos', size: storage.videos, icon: HardDrive, color: 'text-purple-500' },
@@ -136,9 +181,10 @@ export default function BackupPage() {
           {creating ? 'Creating...' : 'Create Backup'}
         </button>
 
-        <a href="/api/admin/download-db" className="px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
-          <Download size={16} /> Download Live Database
-        </a>
+        <button onClick={handleDownloadLiveDb} disabled={downloadingDb} className="px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+          {downloadingDb ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Download size={16} />}
+          {downloadingDb ? 'Downloading...' : 'Download Live Database'}
+        </button>
 
         <button onClick={() => restoreInputRef.current?.click()} disabled={restoring} className="px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
           {restoring ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Upload size={16} />}
@@ -173,9 +219,18 @@ export default function BackupPage() {
                     {new Date(b.date).toLocaleString()} • {formatBytes(b.size)}
                   </p>
                 </div>
-                <a href={`/api/admin/backups/${b.name}`} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full" title="Download">
-                  <Download size={16} />
-                </a>
+                <button 
+                  onClick={() => handleDownloadBackup(b.name)} 
+                  disabled={downloadingName === b.name} 
+                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full disabled:opacity-50" 
+                  title="Download"
+                >
+                  {downloadingName === b.name ? (
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                </button>
                 <button onClick={() => handleDelete(b.name)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full" title="Delete">
                   <Trash2 size={16} />
                 </button>

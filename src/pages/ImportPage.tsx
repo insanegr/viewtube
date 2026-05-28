@@ -4,6 +4,7 @@ import { FolderOpen, HardDrive, Check, X, AlertTriangle, Film, Upload, Link2, Mo
 import useStore from '../store/useStore';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useToast } from '../components/Toast';
+import { getAllowedVisibility } from '../constants';
 
 interface ScannedFile {
   path: string;
@@ -13,6 +14,7 @@ interface ScannedFile {
   primaryCategory: string;
   additionalCategories: string[];
   visibility: string;
+  alreadyImported?: boolean;
 }
 
 interface ImportResult {
@@ -181,7 +183,7 @@ export default function ImportPage() {
       const mapped = data.files.map((f: any) => {
         const inferred = inferMainAndAdditional(f.path);
         inferred.additional.forEach(ensureCategoryExists);
-        return { ...f, selected: true, primaryCategory: inferred.primary, additionalCategories: inferred.additional, visibility: defaultVisibility };
+        return { ...f, selected: !f.alreadyImported, primaryCategory: inferred.primary, additionalCategories: inferred.additional, visibility: defaultVisibility };
       });
       setFiles(mapped);
       showToast(`Found ${mapped.length} videos`, 'info');
@@ -360,10 +362,9 @@ export default function ImportPage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-muted mb-1">Default visibility</label>
             <select value={defaultVisibility} onChange={(e) => setDefaultVisibility(e.target.value)} className={inputCls}>
-              <option value="public">Public</option>
-              {currentUser.role === 'admin' && <option value="vip">VIP only</option>}
-              <option value="unlisted">Unlisted</option>
-              <option value="private">Private</option>
+              {getAllowedVisibility('admin').map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
 
@@ -448,12 +449,34 @@ export default function ImportPage() {
             {files.map((f, i) => {
               const result = results?.find((r) => r.file === f.path);
               return (
-                <div key={f.path} className={`flex items-center gap-3 px-4 py-2 text-sm ${f.selected ? '' : 'opacity-50'} ${result?.status === 'ok' ? 'bg-green-50 dark:bg-green-900/10' : result?.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' : result?.status === 'skip' ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
+                <div 
+                  key={f.path} 
+                  className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
+                    f.selected ? '' : 'opacity-75'
+                  } ${
+                    f.alreadyImported 
+                      ? 'bg-blue-50/50 dark:bg-blue-950/20 border-l-4 border-blue-500' 
+                      : ''
+                  } ${
+                    result?.status === 'ok' 
+                      ? 'bg-green-50 dark:bg-green-900/10' 
+                      : result?.status === 'error' 
+                      ? 'bg-red-50 dark:bg-red-900/10' 
+                      : result?.status === 'skip' 
+                      ? 'bg-yellow-50 dark:bg-yellow-900/10' 
+                      : ''
+                  }`}
+                >
                   <input type="checkbox" checked={f.selected} onChange={() => toggleFile(i)} className="w-3.5 h-3.5 rounded flex-shrink-0" />
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <Film size={14} className="text-gray-400 dark:text-dark-text-muted flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium dark:text-dark-text">{f.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-xs font-medium dark:text-dark-text">{f.name}</p>
+                        {f.alreadyImported && (
+                          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[9px] px-1 rounded uppercase font-bold">ALREADY IMPORTED</span>
+                        )}
+                      </div>
                       {f.path !== f.name && <p className="truncate text-[10px] text-gray-400 dark:text-dark-text-muted">{f.path}</p>}
                     </div>
                     {result && (
@@ -478,10 +501,9 @@ export default function ImportPage() {
                     />
                   </div>
                   <select value={f.visibility} onChange={(e) => setVisibilityForFile(i, e.target.value)} className={inputCls + ' w-24'} disabled={!f.selected}>
-                    <option value="public">Public</option>
-                    {currentUser.role === 'admin' && <option value="vip">VIP only</option>}
-                    <option value="unlisted">Unlisted</option>
-                    <option value="private">Private</option>
+                    {getAllowedVisibility('admin').map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
               );

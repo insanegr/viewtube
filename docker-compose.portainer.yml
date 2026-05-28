@@ -1,0 +1,62 @@
+# =========================================================================
+# ViewTube — Portainer Stack Compose File
+# =========================================================================
+# Optimized for Portainer Web UI & Git Stack deployments.
+# To deploy on your Raspberry Pi via Portainer:
+#   1. Go to Stacks -> Add stack
+#   2. Paste the contents of this file into the Web Editor
+#   3. Use the "Environment variables" section in Portainer to customize variables
+#   4. Deploy the stack.
+# =========================================================================
+
+services:
+  viewtube:
+    # Use precompiled image tag. 
+    # If you built from local source, match your local tag (e.g., viewtube:latest)
+    image: viewtube:latest
+    container_name: viewtube
+    restart: unless-stopped
+    
+    # Port mappings: Expose ViewTube web dashboard to port 3001 on your Raspberry Pi Host
+    ports:
+      - "3001:3000"
+
+    # Volume mounts optimized for Raspberry Pi storage splits
+    volumes:
+      # Main app metadata: viewtube.db SQLite file, thumbnails, avatars, banners, watch history
+      - /mnt/appdata/viewtube-data:/app/server/data
+
+      # Large media disk target: stores video files uploaded through the website 
+      - /mnt/wdx6/viewtube-videos:/app/server/data/uploads/videos
+
+      # Root directory of all mounted HDDs, allowing zero-config browsing inside the Admin Import UI
+      - /mnt:/videos-root:ro
+
+    # Portainer Environment Variables Configuration
+    # You can specify and override these directly inside Portainer's UI input forms
+    environment:
+      - PORT=3000
+      - TZ=Europe/Athens
+      
+      # Database storage and scanned directory targets (matches container paths inside volumes)
+      - DATA_DIR=/app/server/data
+      - IMPORT_DIR=/videos-root
+
+      # JWT Security Keys — Replace with secure randomly generated 64-hex characters!
+      # Generate with: openssl rand -hex 32
+      - JWT_SECRET=CHANGE_ME_PASTE_RANDOM_HEX_HERE
+      - JWT_REFRESH_SECRET=CHANGE_ME_PASTE_ANOTHER_RANDOM_HEX_HERE
+
+      # Default Admin credentials. Used ONLY on the absolute first run when database is initialized.
+      # Login using these credentials and change the password immediately.
+      - ADMIN_EMAIL=admin@yourdomain.com
+      - ADMIN_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+      - ADMIN_NAME=Admin
+
+    # Self-healing health checks specifically tuned for cold starts on Raspberry Pi models
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/categories').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3

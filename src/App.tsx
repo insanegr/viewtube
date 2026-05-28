@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import metadata from '../metadata.json';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { ThemeProvider } from './theme/ThemeContext';
 import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import MobileNav from './components/MobileNav';
 import MiniPlayer from './components/MiniPlayer';
 import HomePage from './pages/HomePage';
 import WatchPage from './pages/WatchPage';
@@ -50,12 +50,26 @@ function AppContent() {
 
   const isAuthPage = location.pathname === '/login';
 
+  // Dynamic favicon from metadata.json
+  useEffect(() => {
+    if (metadata && (metadata as any).favicon) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = (metadata as any).favicon;
+    }
+  }, []);
+
   useEffect(() => {
     const check = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
-      if (!mobile) setSidebarOpen(true);
-      else setSidebarOpen(false);
+      if (mobile) {
+        setSidebarOpen(false);
+      }
     };
     check();
     window.addEventListener('resize', check);
@@ -63,8 +77,11 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    if (isMobile) setSidebarOpen(false);
-  }, [location.pathname, location.search, isMobile]);
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    document.documentElement.scrollTo({ top: 0 });
+    document.body.scrollTo({ top: 0 });
+  }, [location.pathname, location.search]);
 
   // Reliably activate mini player when leaving a watch page while playback is active.
   useEffect(() => {
@@ -87,9 +104,9 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-dark-text">
       <Header onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
-      {isMobile && sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar isOpen={sidebarOpen} isMobile={isMobile} />
-      <main className={`pt-14 transition-all duration-200 ${!isMobile && sidebarOpen ? 'lg:ml-60' : !isMobile ? 'lg:ml-[72px]' : 'ml-0'} ${isMobile ? 'pb-14' : ''}`}>
+      {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 transition-opacity" onClick={() => setSidebarOpen(false)} />}
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(false)} />
+      <main className="pt-14 ml-0">
         <div className="p-3 sm:p-4 lg:p-6">
           <Routes>
             {/* Public routes — anyone can browse and watch */}
@@ -118,7 +135,6 @@ function AppContent() {
           </Routes>
         </div>
       </main>
-      {isMobile && <MobileNav />}
       <MiniPlayer isMobile={isMobile} />
     </div>
   );

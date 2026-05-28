@@ -4,6 +4,7 @@ import { KeyRound, X, Copy } from 'lucide-react';
 import useStore from '../store/useStore';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
+import { formatDateTime } from '../utils/format';
 
 interface RecoveryRequest {
   id: string;
@@ -26,7 +27,9 @@ export default function RecoveryRequestsPage() {
   const [items, setItems] = useState<RecoveryRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (currentUser.role !== 'admin') return <Navigate to="/" replace />;
+  const isModeratorRole = currentUser.role === 'moderator' || currentUser.role === 'moderator_vip_plus' || currentUser.role === 'moderator_vip_plus_plus';
+
+  if (currentUser.role !== 'admin' && !isModeratorRole) return <Navigate to="/" replace />;
 
   const load = async () => {
     setLoading(true);
@@ -87,7 +90,7 @@ export default function RecoveryRequestsPage() {
                   </div>
                   <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-1">Requested with identifier: <span className="font-medium">{r.identifier}</span></p>
                   {r.note && <p className="text-sm text-gray-500 dark:text-dark-text-muted mt-1">“{r.note}”</p>}
-                  <p className="text-xs text-gray-400 dark:text-dark-text-muted mt-2">{new Date(r.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400 dark:text-dark-text-muted mt-2">{formatDateTime(r.createdAt)}</p>
                   {r.status === 'resolved' && r.tempPassword && (
                     <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-700 dark:text-green-400">
                       Temp password: <code className="font-mono">{r.tempPassword}</code>

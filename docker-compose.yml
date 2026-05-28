@@ -13,8 +13,6 @@
 # without changing code. The import UI will browse inside /mnt.
 # ============================================
 
-version: "3.8"
-
 services:
   viewtube:
     build:
@@ -22,10 +20,10 @@ services:
       dockerfile: Dockerfile
     container_name: viewtube
     ports:
-      - "3001:3001"
+      - "3001:3000"
     volumes:
       # Main app data: DB + metadata + thumbnails + avatars + banners
-      - /mnt/appdata/viewtube:/app/server/data
+      - /mnt/appdata/viewtube-data:/app/server/data
 
       # Uploaded videos stored on large HDD separately
       - /mnt/wdx6/viewtube-videos:/app/server/data/uploads/videos
@@ -35,12 +33,12 @@ services:
     env_file:
       - stack.env
     environment:
-      - PORT=3001
+      - PORT=3000
       - DATA_DIR=/app/server/data
       - IMPORT_DIR=/videos-root
       - TZ=Europe/Athens
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/categories').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/categories').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       start_period: 60s

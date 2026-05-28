@@ -24,6 +24,93 @@ export default function LoginPage() {
   const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
   const [recoveryNote, setRecoveryNote] = useState('');
 
+  const [usernameStatus, setUsernameStatus] = useState<{ checked: boolean; available: boolean; loading: boolean; msg?: string }>({ checked: false, available: false, loading: false });
+  const [emailStatus, setEmailStatus] = useState<{ checked: boolean; available: boolean; loading: boolean; msg?: string }>({ checked: false, available: false, loading: false });
+  const [nameStatus, setNameStatus] = useState<{ checked: boolean; available: boolean; loading: boolean; msg?: string }>({ checked: false, available: false, loading: false });
+
+  const handleNameChange = async (val: string) => {
+    setName(val);
+    if (!val.trim()) {
+      setNameStatus({ checked: false, available: false, loading: false });
+      return;
+    }
+    if (val.trim().length < 2) {
+      setNameStatus({ checked: true, available: false, loading: false, msg: 'Must be at least 2 characters' });
+      return;
+    }
+    setNameStatus({ checked: false, available: false, loading: true });
+    try {
+      const { api } = await import('../api/client');
+      const res = await api.checkName(val);
+      if (res.available !== undefined) {
+        setNameStatus({
+          checked: true,
+          available: res.available,
+          loading: false,
+          msg: res.available ? 'Channel name is available!' : (res.error || 'Channel name is already taken')
+        });
+      } else {
+        setNameStatus({ checked: true, available: false, loading: false, msg: res.error || 'Invalid channel name' });
+      }
+    } catch {
+      setNameStatus({ checked: false, available: false, loading: false });
+    }
+  };
+
+  const handleUsernameChange = async (val: string) => {
+    setUsername(val);
+    if (!val.trim()) {
+      setUsernameStatus({ checked: false, available: false, loading: false });
+      return;
+    }
+    setUsernameStatus({ checked: false, available: false, loading: true });
+    try {
+      const { api } = await import('../api/client');
+      const res = await api.checkUsername(val);
+      if (res.available !== undefined) {
+        setUsernameStatus({
+          checked: true,
+          available: res.available,
+          loading: false,
+          msg: res.available ? 'Username is available!' : (res.error || 'Username is already taken')
+        });
+      } else {
+        setUsernameStatus({ checked: true, available: false, loading: false, msg: res.error || 'Invalid username' });
+      }
+    } catch {
+      setUsernameStatus({ checked: false, available: false, loading: false });
+    }
+  };
+
+  const handleEmailChange = async (val: string) => {
+    setEmail(val);
+    if (!val.trim()) {
+      setEmailStatus({ checked: false, available: false, loading: false });
+      return;
+    }
+    if (!val.includes('@')) {
+      setEmailStatus({ checked: true, available: false, loading: false, msg: 'Please enter a valid email address' });
+      return;
+    }
+    setEmailStatus({ checked: false, available: false, loading: true });
+    try {
+      const { api } = await import('../api/client');
+      const res = await api.checkEmail(val);
+      if (res.available !== undefined) {
+        setEmailStatus({
+          checked: true,
+          available: res.available,
+          loading: false,
+          msg: res.available ? 'Email is available!' : (res.error || 'Email already connected to active account')
+        });
+      } else {
+        setEmailStatus({ checked: true, available: false, loading: false, msg: res.error || 'Invalid email' });
+      }
+    } catch {
+      setEmailStatus({ checked: false, available: false, loading: false });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -32,6 +119,33 @@ export default function LoginPage() {
       const { api } = await import('../api/client');
       if (isRegister) {
         if (!name.trim()) { setError('Channel name is required'); setLoading(false); return; }
+        if (!username.trim()) { setError('Username is required'); setLoading(false); return; }
+        
+        // Wait elements to finish loading if typing and immediate press submit
+        if (usernameStatus.loading || emailStatus.loading || nameStatus.loading) {
+          setError('Checking username, email, or channel name availability...');
+          setLoading(false);
+          return;
+        }
+
+        if (nameStatus.checked && !nameStatus.available) {
+          setError(nameStatus.msg || 'Channel name is already taken');
+          setLoading(false);
+          return;
+        }
+
+        if (usernameStatus.checked && !usernameStatus.available) {
+          setError(usernameStatus.msg || 'Username is already taken');
+          setLoading(false);
+          return;
+        }
+
+        if (emailStatus.checked && !emailStatus.available) {
+          setError(emailStatus.msg || 'Email is already taken');
+          setLoading(false);
+          return;
+        }
+
         const res = await api.register(name.trim(), username.trim(), email.trim(), password);
         setTokens(res.accessToken, res.refreshToken);
         useStore.setState({ currentUser: { ...useStore.getState().currentUser, ...res.user, subscribers: [], password: '' } });
@@ -95,11 +209,23 @@ export default function LoginPage() {
                   <>
                     <div>
                       <label className="block text-sm font-medium mb-1.5 dark:text-dark-text-secondary">Channel name</label>
-                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="My Channel" className={inputCls} required />
+                      <input type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="My Channel" className={inputCls} required />
+                      {nameStatus.loading && <p className="text-xs text-gray-400 dark:text-dark-text-muted mt-1">Checking channel name availability...</p>}
+                      {nameStatus.checked && !nameStatus.loading && (
+                        <p className={`text-xs mt-1 ${nameStatus.available ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-500 dark:text-red-400 font-medium'}`}>
+                          {nameStatus.available ? '✓ ' : '✗ '}{nameStatus.msg}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5 dark:text-dark-text-secondary">Username</label>
-                      <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="my-channel" className={inputCls} />
+                      <input type="text" value={username} onChange={(e) => handleUsernameChange(e.target.value)} placeholder="my-channel" className={inputCls} required minLength={3} />
+                      {usernameStatus.loading && <p className="text-xs text-gray-400 dark:text-dark-text-muted mt-1">Checking username availability...</p>}
+                      {usernameStatus.checked && !usernameStatus.loading && (
+                        <p className={`text-xs mt-1 ${usernameStatus.available ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-500 dark:text-red-400 font-medium'}`}>
+                          {usernameStatus.available ? '✓ ' : '✗ '}{usernameStatus.msg}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -112,7 +238,13 @@ export default function LoginPage() {
                 ) : (
                   <div>
                     <label className="block text-sm font-medium mb-1.5 dark:text-dark-text-secondary">Email Address</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className={inputCls} required />
+                    <input type="email" value={email} onChange={(e) => handleEmailChange(e.target.value)} placeholder="you@example.com" className={inputCls} required />
+                    {emailStatus.loading && <p className="text-xs text-gray-400 dark:text-dark-text-muted mt-1">Checking email availability...</p>}
+                    {emailStatus.checked && !emailStatus.loading && (
+                      <p className={`text-xs mt-1 ${emailStatus.available ? 'text-green-600 dark:text-green-400 font-medium' : 'text-red-500 dark:text-red-400 font-medium'}`}>
+                        {emailStatus.available ? '✓ ' : '✗ '}{emailStatus.msg}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -141,7 +273,17 @@ export default function LoginPage() {
 
               <div className="mt-6 text-center text-sm">
                 <span className="text-gray-500 dark:text-dark-text-muted">{isRegister ? 'Already have an account?' : "Don't have an account?"}</span>{' '}
-                <button onClick={() => { setIsRegister(!isRegister); setError(''); }} className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                <button onClick={() => { 
+                  setIsRegister(!isRegister); 
+                  setError(''); 
+                  setUsernameStatus({ checked: false, available: false, loading: false });
+                  setEmailStatus({ checked: false, available: false, loading: false });
+                  setNameStatus({ checked: false, available: false, loading: false });
+                  setUsername('');
+                  setEmail('');
+                  setPassword('');
+                  setName('');
+                }} className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
                   {isRegister ? 'Sign in' : 'Create account'}
                 </button>
               </div>
